@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mess Manager</title>
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. Load React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- 3. Load Babel (to compile JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      /* Simple font setup */
+      body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+      
+      /* Hide number input arrows for cleaner look */
+      input[type=number]::-webkit-inner-spin-button, 
+      input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+      }
+      input[type=number] {
+        -moz-appearance: textfield;
+      }
+      
+      /* Disabled input styling */
+      input:disabled, select:disabled, button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+      
+      /* Print Styles */
+      .print-only { display: none; }
+      @media print {
+        .print-only { display: block !important; }
+        aside, header, .no-print { display: none !important; }
+        main { margin: 0; padding: 0; height: auto; overflow: visible; }
+        .print-container { width: 100%; max-width: 100%; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        th, td { border: 1px solid #000; padding: 4px; color: #000 !important; }
+        th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; }
+        .bg-green-500, .bg-green-600 { background-color: #ddd !important; color: black !important; -webkit-print-color-adjust: exact; }
+        .bg-red-500 { background-color: #eee !important; color: black !important; -webkit-print-color-adjust: exact; }
+        .bg-blue-500 { background-color: #ccc !important; color: black !important; -webkit-print-color-adjust: exact; }
+        .bg-amber-500 { background-color: #bbb !important; color: black !important; -webkit-print-color-adjust: exact; }
+        .bg-gray-100, .bg-gray-200 { background-color: #f9f9f9 !important; -webkit-print-color-adjust: exact; }
+        input { border: none; background: transparent; }
+      }
+      
+      /* Animation */
+      @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      .animate-slide-up { animation: slideUp 0.5s ease-out forwards; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- 5. React Code with Firebase -->
+    <script type="text/babel" data-type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+      import { getFirestore, collection, doc, onSnapshot, addDoc, deleteDoc, updateDoc, query, orderBy, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+      import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+
+      const { useState, useEffect, useMemo, useCallback } = React;
+
+      // --- Icons ---
+      const IconDashboard = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>;
+      const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
+      const IconMeals = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>;
+      const IconExpense = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
+      const IconUtilities = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>;
+      const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+      const IconLock = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>;
+      const IconUnlock = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>;
+      const IconDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
+      const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+      const IconBell = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>;
+      const IconBadge = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.78 4.78 4 4 0 0 1-6.74 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"></path></svg>;
+      const IconActivity = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>;
+      const IconKey = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>;
+      const IconPrinter = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>;
+      const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
+      const IconLogOut = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>;
+
+      // --- Helper Functions ---
+      const formatCurrency = (amount) => `Tk ${Number(amount).toFixed(2)}`;
+      const getTodayDate = () => new Date().toISOString().split('T')[0];
+      const getTimestamp = () => new Date().toLocaleString();
+      const formatDateDisplay = (isoDate) => {
+        if (!isoDate) return '';
+        const [year, month, day] = isoDate.split('-');
+        return `${day}/${month}/${year.slice(2)}`;
+      };
+      const getDaysInMonth = (monthStr) => {
+        const days = [];
+        const date = new Date(monthStr + '-01');
+        while (date.toISOString().slice(0, 7) === monthStr) {
+          days.push(date.toISOString().split('T')[0]);
+          date.setDate(date.getDate() + 1);
+        }
+        return days;
+      };
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+      // --- Firebase Config Modal ---
+      const ConfigModal = ({ onSave }) => {
+        const [configStr, setConfigStr] = useState('');
+        
+        const handleSave = () => {
+          let cfg;
+          try {
+            // Try strict JSON first
+            cfg = JSON.parse(configStr);
+          } catch (e) {
+            try {
+              // Try evaluating as JS object (handles unquoted keys from Firebase Console copy-paste)
+              // We replace the assignment part if copied directly
+              let cleanStr = configStr.replace(/const\s+\w+\s*=\s*/, '').replace(/;$/, '');
+              // Use Function constructor for safer evaluation than eval
+              cfg = new Function('return ' + cleanStr)();
+            } catch (e2) {
+              alert("Could not parse config. Please ensure you copied the object correctly.");
+              return;
+            }
+          }
+          if (cfg && cfg.apiKey) {
+             onSave(cfg);
+          } else {
+             alert("Invalid config object. Must contain apiKey.");
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center p-4 z-50 animate-slide-up">
+            <div className="bg-white p-8 rounded-xl shadow-2xl max-w-lg w-full border-t-4 border-red-600">
+              <h2 className="text-2xl font-bold mb-2 text-gray-800">Setup Cloud Sync</h2>
+              <p className="text-sm text-gray-600 mb-6">Connect your mess to the cloud. Create a project at <a href="https://console.firebase.google.com" target="_blank" className="text-red-600 underline font-medium">firebase.google.com</a>, add a Web App, and paste the config object below.</p>
+              <textarea 
+                className="w-full border-2 border-gray-200 rounded-lg p-3 text-xs font-mono mb-4 h-32 focus:border-red-500 focus:ring-red-500 focus:ring-1 outline-none transition-all" 
+                placeholder='Paste the firebaseConfig object here...'
+                value={configStr}
+                onChange={e => setConfigStr(e.target.value)}
+              />
+              <button onClick={handleSave} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">Connect Database</button>
+            </div>
+          </div>
+        );
+      };
+
+      // --- Login Page Component ---
+      const LoginPage = ({ auth }) => {
+        const [isLogin, setIsLogin] = useState(true);
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [error, setError] = useState('');
+        const [loading, setLoading] = useState(false);
+
+        const handleAuth = async (e) => {
+          e.preventDefault();
+          setError('');
+          setLoading(true);
+          try {
+            if (isLogin) {
+              await signInWithEmailAndPassword(auth, email, password);
+            } else {
+              await createUserWithEmailAndPassword(auth, email, password);
+            }
+          } catch (err) {
+            setError(err.message.replace('Firebase: ', ''));
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-up border border-gray-100">
+              <div className="bg-red-600 p-8 text-center">
+                 <h1 className="text-3xl font-extrabold text-white tracking-tight">Mess Manager</h1>
+                 <p className="text-red-100 mt-2 text-sm">Smart Management for Smart Living</p>
+              </div>
+              <div className="p-8">
+                 <div className="flex justify-center mb-6 bg-gray-100 p-1 rounded-lg">
+                    <button onClick={() => setIsLogin(true)} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${isLogin ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Sign In</button>
+                    <button onClick={() => setIsLogin(false)} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${!isLogin ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Sign Up</button>
+                 </div>
+                 {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100 flex items-center"><span className="mr-2">⚠️</span> {error}</div>}
+                 <form onSubmit={handleAuth} className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-500 uppercase">Email Address</label>
+                      <input type="email" required className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all font-medium text-gray-700" placeholder="admin@mess.com" value={email} onChange={e => setEmail(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-500 uppercase">Password</label>
+                      <input type="password" required className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all font-medium text-gray-700" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+                    </div>
+                    <button disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-wait mt-4">
+                      {loading ? 'Processing...' : (isLogin ? 'Access Dashboard' : 'Create Account')}
+                    </button>
+                 </form>
+                 <div className="mt-6 text-center"><p className="text-xs text-gray-400">Secure Cloud Sync • Multi-Device Access</p></div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      function App() {
+        const [db, setDb] = useState(null);
+        const [auth, setAuth] = useState(null);
+        const [appId, setAppId] = useState(null);
+        const [needsConfig, setNeedsConfig] = useState(false);
+        const [user, setUser] = useState(null);
+        const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+
+        const [members, setMembers] = useState([]);
+        const [meals, setMeals] = useState([]);
+        const [expenses, setExpenses] = useState([]);
+        const [notices, setNotices] = useState([]);
+        const [managers, setManagers] = useState({});
+        const [logs, setLogs] = useState([]);
+        const [managerPin, setManagerPin] = useState(() => localStorage.getItem('mess_pin') || '1234');
+
+        // --- Firebase Init ---
+        useEffect(() => {
+          const initFB = async () => {
+            let firebaseConfig;
+            let currentAppId = 'default';
+
+            if (typeof __firebase_config !== 'undefined') {
+              firebaseConfig = JSON.parse(__firebase_config);
+              currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'mess-manager-default';
+            } else {
+              const localConfig = localStorage.getItem('mess_firebase_config');
+              if (localConfig) {
+                firebaseConfig = JSON.parse(localConfig);
+                currentAppId = 'local-mess';
+              } else {
+                setNeedsConfig(true);
+                return;
+              }
+            }
+
+            try {
+              const app = initializeApp(firebaseConfig);
+              const authInstance = getAuth(app);
+              const dbInstance = getFirestore(app);
+              
+              setAuth(authInstance);
+              setDb(dbInstance);
+              setAppId(currentAppId);
+              setIsFirebaseReady(true);
+            } catch (e) {
+              console.error("Firebase init failed", e);
+              // If init fails, maybe config is bad, let user reset?
+              // For now, alert
+              alert("Failed to connect to database. Please check your config.");
+            }
+          };
+          initFB();
+        }, []);
+
+        useEffect(() => {
+          if (!auth) return;
+          return onAuthStateChanged(auth, (u) => setUser(u));
+        }, [auth]);
+
+        // --- Data Subscriptions ---
+        useEffect(() => {
+          if (!db || !user || !appId) return;
+          const basePath = `artifacts/${appId}/public/data`;
+          
+          const unsubMembers = onSnapshot(collection(db, basePath, 'members'), (s) => setMembers(s.docs.map(d => ({id: d.id, ...d.data()}))));
+          const unsubMeals = onSnapshot(collection(db, basePath, 'meals'), (s) => setMeals(s.docs.map(d => ({id: d.id, ...d.data()}))));
+          const unsubExpenses = onSnapshot(collection(db, basePath, 'expenses'), (s) => setExpenses(s.docs.map(d => ({id: d.id, ...d.data()}))));
+          const unsubNotices = onSnapshot(collection(db, basePath, 'notices'), (s) => setNotices(s.docs.map(d => ({id: d.id, ...d.data()}))));
+          const unsubLogs = onSnapshot(query(collection(db, basePath, 'logs'), orderBy('timestamp', 'desc')), (s) => setLogs(s.docs.map(d => ({id: d.id, ...d.data()}))));
+          
+          const unsubManagers = onSnapshot(collection(db, basePath, 'managers'), (s) => {
+             const mgrMap = {};
+             s.docs.forEach(d => mgrMap[d.id] = d.data().name);
+             setManagers(mgrMap);
+          });
+
+          return () => { unsubMembers(); unsubMeals(); unsubExpenses(); unsubNotices(); unsubManagers(); unsubLogs(); };
+        }, [db, user, appId]);
+
+
+        const [selectedMonth, setSelectedMonth] = useState(getTodayDate().substring(0, 7));
+        const [currentView, setCurrentView] = useState('dashboard');
+        const [error, setError] = useState(null);
+        const [success, setSuccess] = useState(null);
+        const [isAdmin, setIsAdmin] = useState(false);
+
+        const currentManagerName = managers[selectedMonth] || 'Not Assigned';
+
+        // -- Actions --
+        const showMessage = (msg, type = 'success') => {
+          if (type === 'success') { setSuccess(msg); setError(null); }
+          else { setError(msg); setSuccess(null); }
+          setTimeout(() => { setSuccess(null); setError(null); }, 3000);
+        };
+
+        const dbOp = async (coll, data, id = null) => {
+           if (!db || !appId) return;
+           const path = `artifacts/${appId}/public/data/${coll}`;
+           try {
+             if (id) await setDoc(doc(db, path, id), data);
+             else await addDoc(collection(db, path), data);
+           } catch(e) { console.error(e); setError("Sync Error: " + e.message); }
+        };
+        const dbDel = async (coll, id) => {
+           if (!db || !appId) return;
+           try { await deleteDoc(doc(db, `artifacts/${appId}/public/data/${coll}`, id)); } catch(e) { setError("Delete Error: " + e.message); }
+        };
+
+        const addLog = (action, details) => {
+          dbOp('logs', { action, details, timestamp: new Date().toISOString() }); 
+        };
+
+        const toggleAdmin = () => {
+          if (isAdmin) { setIsAdmin(false); showMessage("Logged out. View Only Mode."); } 
+          else {
+            const pin = prompt("Enter Manager PIN:");
+            if (pin === managerPin) { setIsAdmin(true); showMessage("Manager Mode Unlocked!"); } 
+            else if (pin !== null) showMessage("Incorrect PIN", "error");
+          }
+        };
+
+        const handleLogout = async () => {
+           if (auth) {
+             await signOut(auth);
+             setIsAdmin(false);
+           }
+        };
+
+        const handleAddMember = (name, mealDeposit, utilDeposit) => {
+          if (!name) return showMessage("Name required", "error");
+          const newM = { name, deposit: Number(mealDeposit) || 0, utilDeposit: Number(utilDeposit) || 0 };
+          dbOp('members', newM);
+          addLog("Add Member", `Added ${name}`);
+          showMessage("Member added");
+        };
+
+        const handleUpdateMember = (id, field, value) => {
+          if (!db || !appId) return;
+          const ref = doc(db, `artifacts/${appId}/public/data/members`, id);
+          updateDoc(ref, { [field]: Number(value) });
+          const member = members.find(m => m.id === id);
+          addLog("Update Member", `Updated ${field} for ${member?.name} to ${value}`);
+        };
+
+        const handleDeleteMember = (id) => {
+          const member = members.find(m => m.id === id);
+          dbDel('members', id);
+          addLog("Delete Member", `Removed member: ${member?.name}`);
+          showMessage("Member deleted");
+        };
+
+        const handleAddExpense = (description, amount, date, category, payerId) => {
+          if (!description || !amount) return showMessage("Missing details", "error");
+          dbOp('expenses', { description, amount: Number(amount), date, category, payerId: payerId === 'common' ? null : payerId });
+          addLog("Add Expense", `Added ${category}: ${description} (${amount} Tk)`);
+          showMessage("Transaction logged");
+        };
+
+        const handleDeleteExpense = (id) => {
+          const exp = expenses.find(e => e.id === id);
+          dbDel('expenses', id);
+          addLog("Delete Expense", `Removed: ${exp?.description} (${exp?.amount} Tk)`);
+          showMessage("Transaction removed");
+        };
+
+        const handleUpdateMeal = (date, memberId, value) => {
+          const existing = meals.find(m => m.date === date && m.memberId === memberId);
+          if (value === '' || value === null || value == 0) {
+            if (existing) dbDel('meals', existing.id);
+          } else {
+            const member = members.find(m => m.id === memberId);
+            const data = { memberId, memberName: member?.name, date, totalMeals: Number(value) };
+            if (existing) dbOp('meals', data, existing.id);
+            else dbOp('meals', data);
+          }
+        };
+
+        const handleAddNotice = (text) => {
+          dbOp('notices', { text, date: getTodayDate() });
+          addLog("Add Notice", `Posted: ${text}`);
+          showMessage("Notice published");
+        };
+        const handleDeleteNotice = (id) => {
+          dbDel('notices', id);
+          addLog("Delete Notice", "Removed a notice");
+          showMessage("Notice deleted");
+        };
+
+        const handleUpdateManager = (name) => {
+          dbOp('managers', { name }, selectedMonth); 
+          addLog("Update Manager", `Set ${name} as manager for ${selectedMonth}`);
+          showMessage(`Manager for ${selectedMonth} updated!`);
+        };
+
+        const handleChangePin = (oldPin, newPin) => {
+          if (oldPin !== managerPin) return showMessage("Old PIN is incorrect", "error");
+          setManagerPin(newPin);
+          localStorage.setItem('mess_pin', newPin);
+          addLog("Security", "Manager PIN changed");
+          showMessage("PIN Updated Successfully!");
+        };
+        
+        const handleCloseMonth = (monthToClose) => {
+           const [year, mth] = monthToClose.split('-').map(Number);
+           const nextDate = new Date(year, mth, 1);
+           const nextMonthStr = nextDate.toISOString().substring(0, 7);
+           
+           const monthExpenses = expenses.filter(e => e.date.startsWith(monthToClose));
+           const monthMeals = meals.filter(m => m.date.startsWith(monthToClose));
+           const isUtility = (cat) => ['gas', 'electricity', 'internet'].includes(cat);
+           const mealExpenses = monthExpenses.filter(e => !isUtility(e.category));
+           const totalMealCost = mealExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+           const totalMealsCount = monthMeals.reduce((sum, m) => sum + Number(m.totalMeals), 0);
+           const mealRate = totalMealsCount > 0 ? totalMealCost / totalMealsCount : 0;
+
+           members.forEach(m => {
+             const mMeals = monthMeals.filter(x => x.memberId === m.id);
+             const totalMeals = mMeals.reduce((sum, x) => sum + Number(x.totalMeals), 0);
+             const paidExpenses = monthExpenses.filter(e => e.payerId === m.id && !isUtility(e.category));
+             const paidForMeals = paidExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+             const prevBal = monthExpenses.filter(e => e.payerId === m.id && e.category === 'balance_forward').reduce((sum, e) => sum + Number(e.amount), 0);
+             const totalCredit = Number(m.deposit) + paidForMeals + prevBal;
+             const cost = totalMeals * mealRate;
+             const closingBal = totalCredit - cost;
+
+             if (closingBal !== 0) {
+               dbOp('expenses', {
+                 description: `Balance B/F (${monthToClose})`,
+                 amount: closingBal,
+                 date: `${nextMonthStr}-01`,
+                 category: 'balance_forward',
+                 payerId: m.id
+               });
+             }
+           });
+           
+           addLog("Month Close", `Closed ${monthToClose}`);
+           showMessage("Month Closed!");
+           setSelectedMonth(nextMonthStr);
+        };
+
+        const handleMonthChange = (e) => {
+          const [year, _] = selectedMonth.split('-');
+          setSelectedMonth(`${year}-${e.target.value.padStart(2, '0')}`);
+        };
+        const handleYearChange = (e) => {
+          const [_, month] = selectedMonth.split('-');
+          setSelectedMonth(`${e.target.value}-${month}`);
+        };
+
+        const handleSaveLocalConfig = (cfg) => {
+          localStorage.setItem('mess_firebase_config', JSON.stringify(cfg));
+          window.location.reload();
+        };
+
+        const handleExportData = () => {
+             const data = { members, meals, expenses, notices, managers, date: new Date().toISOString() };
+             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+             const url = URL.createObjectURL(blob);
+             const a = document.createElement('a');
+             a.href = url;
+             a.download = `mess_backup_fb_${new Date().toISOString().slice(0,10)}.json`;
+             a.click();
+             showMessage("Backup downloaded!");
+        };
+
+        const handleImportData = () => {
+             alert("Restore from file is disabled in Cloud Mode to prevent data conflicts. Please contact admin.");
+        };
+
+        const summary = useMemo(() => {
+          const monthExpenses = expenses.filter(e => e.date.startsWith(selectedMonth));
+          const monthMeals = meals.filter(m => m.date.startsWith(selectedMonth));
+          const isUtility = (cat) => ['gas', 'electricity', 'internet'].includes(cat);
+          const mealExpenses = monthExpenses.filter(e => !isUtility(e.category) && e.category !== 'balance_forward');
+          const utilityExpenses = monthExpenses.filter(e => isUtility(e.category));
+          const totalMealCost = mealExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+          const totalUtilityCost = utilityExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+          const totalMealsCount = monthMeals.reduce((sum, m) => sum + Number(m.totalMeals), 0);
+          const mealRate = totalMealsCount > 0 ? totalMealCost / totalMealsCount : 0;
+          const activeMemberCount = members.length;
+          const utilityPerPerson = activeMemberCount > 0 ? totalUtilityCost / activeMemberCount : 0;
+          const getCatTotal = (cat) => monthExpenses.filter(e => e.category === cat).reduce((s, e) => s + Number(e.amount), 0);
+          return { totalMealCost, totalUtilityCost, totalMealsCount, mealRate, utilityPerPerson, gasTotal: getCatTotal('gas'), electricityTotal: getCatTotal('electricity'), internetTotal: getCatTotal('internet') };
+        }, [expenses, meals, members.length, selectedMonth]);
+
+        const allTimeSummary = useMemo(() => {
+          const totalMealCashCollected = members.reduce((sum, m) => sum + Number(m.deposit), 0);
+          const totalMealCashSpent = expenses.filter(e => !e.payerId && !['gas', 'electricity', 'internet', 'balance_forward'].includes(e.category)).reduce((sum, e) => sum + Number(e.amount), 0);
+          const messFundRemaining = totalMealCashCollected - totalMealCashSpent;
+          return { messFundRemaining };
+        }, [members, expenses]);
+
+        const memberStats = useMemo(() => {
+          return members.map(m => {
+            const mMeals = meals.filter(x => x.memberId === m.id && x.date.startsWith(selectedMonth));
+            const totalMeals = mMeals.reduce((sum, x) => sum + Number(x.totalMeals), 0);
+            const monthExps = expenses.filter(e => e.date.startsWith(selectedMonth));
+            const paidForMeals = monthExps.filter(e => e.payerId === m.id && !['gas', 'electricity', 'internet', 'balance_forward'].includes(e.category)).reduce((sum, e) => sum + Number(e.amount), 0);
+            const balanceForward = monthExps.filter(e => e.payerId === m.id && e.category === 'balance_forward').reduce((sum, e) => sum + Number(e.amount), 0);
+            const paidForUtils = monthExps.filter(e => e.payerId === m.id && ['gas', 'electricity', 'internet'].includes(e.category)).reduce((sum, e) => sum + Number(e.amount), 0);
+
+            const totalMealDeposit = m.deposit + paidForMeals + balanceForward;
+            const myMealCost = totalMeals * summary.mealRate;
+            const mealBalance = totalMealDeposit - myMealCost;
+            const totalUtilDeposit = m.utilDeposit + paidForUtils;
+            const myUtilCost = summary.utilityPerPerson;
+            const utilBalance = totalUtilDeposit - myUtilCost;
+
+            return { ...m, totalMeals, myMealCost, totalMealDeposit, mealBalance, totalUtilDeposit, myUtilCost, utilBalance, netBalance: mealBalance };
+          }).sort((a, b) => a.name.localeCompare(b.name));
+        }, [members, meals, expenses, summary, selectedMonth]);
+
+        // --- Render Logic ---
+        if (needsConfig) return <ConfigModal onSave={handleSaveLocalConfig} />;
+        if (isFirebaseReady && !user) return <LoginPage auth={auth} />;
+        if (!user && !needsConfig) return <div className="flex h-screen items-center justify-center text-gray-500 animate-pulse">Connecting to Cloud...</div>;
+
+        return (
+          <div className="flex h-screen overflow-hidden text-gray-800">
+            <aside className="w-64 bg-white flex flex-col border-r border-gray-200 shadow-sm z-10 print:hidden">
+              <div className="h-16 flex flex-col items-center justify-center border-b border-gray-100 px-4">
+                <h1 className="text-xl font-bold text-red-600 tracking-tight">Mess Manager</h1>
+                <div className="flex items-center space-x-1 mt-1 text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                  <IconBadge /><span>Manager: <span className="font-semibold text-red-600">{currentManagerName}</span></span>
+                </div>
+              </div>
+              <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                <NavItem icon={<IconDashboard />} label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
+                <NavItem icon={<IconUsers />} label="Members" active={currentView === 'members'} onClick={() => setCurrentView('members')} />
+                <NavItem icon={<IconMeals />} label="Meal Sheet" active={currentView === 'meals'} onClick={() => setCurrentView('meals')} />
+                <NavItem icon={<IconExpense />} label="Log Bazar" active={currentView === 'expenses'} onClick={() => setCurrentView('expenses')} />
+                <NavItem icon={<IconUtilities />} label="Utility Bills" active={currentView === 'utilities'} onClick={() => setCurrentView('utilities')} />
+                <NavItem icon={<IconActivity />} label="Activity Log" active={currentView === 'activity'} onClick={() => setCurrentView('activity')} />
+                <NavItem icon={<IconSettings />} label="Settings" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+              </nav>
+              <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-2">
+                <button onClick={toggleAdmin} className={`w-full flex items-center justify-center space-x-2 py-2 rounded text-sm font-medium transition-colors ${isAdmin ? 'bg-red-100 text-red-700' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'}`}>{isAdmin ? <IconUnlock /> : <IconLock />}<span>{isAdmin ? 'Manager Mode' : 'View Only'}</span></button>
+                <button onClick={handleLogout} className="w-full flex items-center justify-center space-x-2 py-2 rounded text-sm font-medium transition-colors text-gray-500 hover:text-red-600"><IconLogOut /><span>Sign Out</span></button>
+              </div>
+            </aside>
+            <main className="flex-1 flex flex-col min-w-0 bg-gray-50 print-container">
+              <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm print:hidden">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-gray-500 mr-2">Period:</span>
+                  <div className="flex rounded-md shadow-sm">
+                    <select value={currentMonthIdx + 1} onChange={handleMonthChange} className="rounded-l-md border border-gray-300 py-1 pl-3 pr-8 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500">{monthNames.map((name, i) => (<option key={i} value={i + 1}>{name}</option>))}</select>
+                    <input type="number" value={currentYear} onChange={handleYearChange} className="w-20 rounded-r-md border border-l-0 border-gray-300 py-1 px-3 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" />
+                  </div>
+                </div>
+                {(error || success) && <div className={`px-4 py-1.5 rounded text-sm font-medium ${error ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{error || success}</div>}
+              </header>
+              <div className="flex-1 overflow-y-auto p-6">
+                {currentView === 'dashboard' && <DashboardView summary={summary} allTime={allTimeSummary} stats={memberStats} managerName={currentManagerName} selectedMonth={selectedMonth} />}
+                {currentView === 'members' && <MembersView members={members} onAdd={handleAddMember} onDelete={handleDeleteMember} onUpdate={handleUpdateMember} isAdmin={isAdmin} />}
+                {currentView === 'meals' && <MealsSheetView members={members} meals={meals} onUpdate={handleUpdateMeal} month={selectedMonth} stats={memberStats} isAdmin={isAdmin} />}
+                {currentView === 'expenses' && <ExpensesView members={members} expenses={expenses} onAdd={handleAddExpense} onDelete={handleDeleteExpense} month={selectedMonth} isAdmin={isAdmin} />}
+                {currentView === 'utilities' && <UtilitiesView members={members} expenses={expenses} onAdd={handleAddExpense} onDelete={handleDeleteExpense} month={selectedMonth} isAdmin={isAdmin} />}
+                {currentView === 'activity' && <ActivityView logs={logs} />}
+                {currentView === 'settings' && <SettingsView onExport={handleExportData} onImport={handleImportData} isAdmin={isAdmin} notices={notices} onAddNotice={handleAddNotice} onDeleteNotice={handleDeleteNotice} managerName={currentManagerName} onUpdateManager={handleUpdateManager} selectedMonth={selectedMonth} onChangePin={handleChangePin} onCloseMonth={handleCloseMonth} />}
+              </div>
+            </main>
+            {currentView === 'dashboard' && (
+              <aside className="w-80 bg-white border-l border-gray-200 p-6 overflow-y-auto shadow-xl z-20 space-y-6 print:hidden">
+                <div className="bg-white rounded-lg shadow border border-indigo-100 overflow-hidden">
+                  <div className="bg-red-600 px-4 py-3"><h3 className="text-white font-bold text-sm uppercase tracking-wide flex items-center"><span className="mr-2"><IconBell /></span> Announcements</h3></div>
+                  <div className="p-4 space-y-3">{notices.length === 0 ? (<p className="text-sm text-gray-400 text-center italic py-2">No notices yet.</p>) : (notices.map(n => (<div key={n.id} className="bg-red-50 p-3 rounded text-sm text-red-800 border-l-2 border-red-400"><p>{n.text}</p><p className="text-xs text-red-400 mt-1 text-right">{n.date}</p></div>)))}</div>
+                </div>
+                <div className="bg-white rounded-lg shadow border border-red-100 overflow-hidden">
+                  <div className="bg-gray-800 px-4 py-3"><h3 className="text-white font-bold text-sm uppercase tracking-wide flex items-center"><span className="mr-2">⚡</span> Utility Notice</h3></div>
+                  <div className="p-4 space-y-4">
+                    <BillRow label="Gas Bill" amount={summary.gasTotal} />
+                    <BillRow label="Electricity" amount={summary.electricityTotal} />
+                    <BillRow label="Internet" amount={summary.internetTotal} />
+                    {isAdmin && <button onClick={() => setCurrentView('utilities')} className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-sm font-medium transition-colors">Add Bill</button>}
+                  </div>
+                </div>
+              </aside>
+            )}
+          </div>
+        );
+      }
+
+      // --- Components ---
+      const NavItem = ({ icon, label, active, onClick }) => (
+        <button onClick={onClick} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md transition-colors ${active ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}><span className="text-current">{icon}</span><span>{label}</span></button>
+      );
+      const BillRow = ({ label, amount }) => (<div className="flex justify-between items-center border-b border-gray-100 last:border-0 pb-2 last:pb-0"><span className="text-sm text-gray-600">{label}</span><span className="font-bold text-gray-900">{formatCurrency(amount)}</span></div>);
+      const StatCard = ({ title, value, sub, color }) => {
+        const colors = { blue: 'border-l-blue-500 text-blue-600', red: 'border-l-red-500 text-red-600', green: 'border-l-green-500 text-green-600', amber: 'border-l-amber-500 text-amber-600' };
+        return (<div className={`bg-white p-5 rounded-lg shadow-sm border border-gray-100 border-l-4 ${colors[color].split(' ')[0]}`}><p className="text-xs font-bold text-gray-400 uppercase">{title}</p><p className="text-2xl font-bold text-gray-800 mt-1">{value}</p>{sub && <p className={`text-xs mt-1 font-medium ${colors[color].split(' ')[1]}`}>{sub}</p>}</div>);
+      };
+
+      // --- Views ---
+      const DashboardView = ({ summary, allTime, stats, managerName, selectedMonth }) => {
+        const [y, m] = selectedMonth.split('-');
+        const monthName = monthNames[parseInt(m) - 1];
+        const formattedPeriod = `${monthName} ${y}`;
+
+        return (
+          <div className="space-y-6 max-w-6xl mx-auto">
+            <div className="print-only mb-6">
+                <h1 className="text-2xl font-bold text-center mb-2">Mess Manager Report - {formattedPeriod}</h1>
+                <p className="text-center text-sm mb-4">Manager: <span className="font-semibold">{managerName}</span></p>
+                <div className="border p-2 mb-4 text-sm bg-gray-50">
+                    <h3 className="font-bold border-b mb-2 pb-1">Utility Bill Summary</h3>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>Gas: {formatCurrency(summary.gasTotal)}</div>
+                        <div>Electricity: {formatCurrency(summary.electricityTotal)}</div>
+                        <div>Internet: {formatCurrency(summary.internetTotal)}</div>
+                    </div>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
+              <StatCard title="Meal Expenses" value={formatCurrency(summary.totalMealCost)} color="red" />
+              <StatCard title="Meal Rate" value={formatCurrency(summary.mealRate)} sub={`${summary.totalMealsCount} meals`} color="green" />
+              <StatCard title="Utility Total" value={formatCurrency(summary.totalUtilityCost)} color="amber" />
+              <StatCard title="Mess Fund (Remaining)" value={formatCurrency(allTime.messFundRemaining)} sub="Cash In Hand" color="blue" />
+            </div>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <h3 className="font-bold text-gray-800">Member Status (This Month)</h3>
+                <button onClick={() => window.print()} className="no-print text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded flex items-center"><IconPrinter /> <span className="ml-1">Print</span></button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-500 font-medium border-b">
+                    <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3 text-center">Meals</th><th className="px-4 py-3 text-right text-red-600">Meal Cost</th><th className="px-4 py-3 text-right text-green-600">Meal Dep.</th><th className="px-4 py-3 text-right text-blue-600 bg-gray-50">Util Dep.</th><th className="px-4 py-3 text-right font-black">NET (Meal Bal)</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {stats.map(m => (
+                      <tr key={m.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900">{m.name}</td>
+                        <td className="px-4 py-3 text-center">{m.totalMeals}</td>
+                        <td className="px-4 py-3 text-right text-red-600">{formatCurrency(m.myMealCost)}</td>
+                        <td className="px-4 py-3 text-right text-green-600">{formatCurrency(m.totalMealDeposit)}</td>
+                        <td className="px-4 py-3 text-right text-blue-600 bg-gray-50">{formatCurrency(m.totalUtilDeposit)}</td>
+                        <td className={`px-4 py-3 text-right font-black ${m.netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(m.netBalance)}</td>
+                      </tr>
+                    ))}
+                    {stats.length === 0 && <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No members found.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const ActivityView = ({ logs }) => (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <h3 className="font-bold text-gray-800 mb-4 flex items-center"><span className="mr-2"><IconActivity /></span> Activity Log</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left"><thead className="bg-gray-50 text-gray-500 font-medium border-b"><tr><th className="px-4 py-3">Time</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Details</th></tr></thead><tbody className="divide-y divide-gray-100">{logs.map(log => (<tr key={log.id} className="hover:bg-gray-50"><td className="px-4 py-3 text-gray-500 whitespace-nowrap">{new Date(log.timestamp).toLocaleString()}</td><td className="px-4 py-3 font-medium text-gray-800">{log.action}</td><td className="px-4 py-3 text-gray-600">{log.details}</td></tr>))}</tbody></table>
+            </div>
+          </div>
+        </div>
+      );
+
+      const SettingsView = ({ onExport, onImport, isAdmin, notices, onAddNotice, onDeleteNotice, managerName, onUpdateManager, selectedMonth, onChangePin, onCloseMonth }) => {
+        const [noticeText, setNoticeText] = useState('');
+        const [mgrName, setMgrName] = useState(managerName);
+        const [oldPin, setOldPin] = useState('');
+        const [newPin, setNewPin] = useState('');
+
+        useEffect(() => setMgrName(managerName), [managerName]);
+        
+        const handleAdd = (e) => { e.preventDefault(); if(!noticeText.trim()) return; onAddNotice(noticeText); setNoticeText(''); };
+        const handleSaveManager = (e) => { e.preventDefault(); onUpdateManager(mgrName); };
+        const handleChangePin = (e) => { e.preventDefault(); onChangePin(oldPin, newPin); setOldPin(''); setNewPin(''); };
+        const handleClose = () => { if(confirm(`Are you sure you want to close ${selectedMonth}? This will carry forward balances to next month.`)) onCloseMonth(selectedMonth); };
+
+        return (
+          <div className="max-w-3xl mx-auto space-y-8">
+            {isAdmin && (<div className="bg-indigo-50 p-6 rounded-lg border border-indigo-200"><h3 className="font-bold text-indigo-800 mb-2">Month Closing</h3><p className="text-sm text-indigo-600 mb-4">Calculate final balances for <strong>{selectedMonth}</strong> and carry them forward.</p><button onClick={handleClose} className="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700">Close Month & Carry Forward</button></div>)}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"><h3 className="font-bold text-gray-800 mb-4 flex items-center"><span className="mr-2"><IconBadge /></span> Monthly Manager</h3><p className="text-sm text-gray-600 mb-4">Set the manager name for <strong>{selectedMonth}</strong>.</p>{isAdmin ? (<form onSubmit={handleSaveManager} className="flex gap-2"><input type="text" value={mgrName} onChange={e => setMgrName(e.target.value)} placeholder="Enter Manager Name" className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" /><button className="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700">Save</button></form>) : (<div className="flex justify-between items-center bg-gray-50 p-3 rounded border border-gray-100"><span className="text-sm text-gray-700">Current Manager: <strong>{managerName}</strong></span><span className="text-xs text-gray-400 italic">Login to change</span></div>)}</div>
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"><h3 className="font-bold text-gray-800 mb-4 flex items-center"><span className="mr-2"><IconLock /></span> Security</h3>{isAdmin ? (<form onSubmit={handleChangePin} className="space-y-3"><input type="password" value={oldPin} onChange={e => setOldPin(e.target.value)} placeholder="Current PIN" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-indigo-500" required /><input type="password" value={newPin} onChange={e => setNewPin(e.target.value)} placeholder="New PIN" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-indigo-500" required /><button className="w-full bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700">Update PIN</button></form>) : (<p className="text-sm text-gray-500 italic">Login to change the Manager PIN.</p>)}</div>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"><h3 className="font-bold text-gray-800 mb-4 flex items-center"><span className="mr-2"><IconBell /></span> Notice Board Configuration</h3>{isAdmin ? (<div className="space-y-4"><form onSubmit={handleAdd} className="flex gap-2"><input type="text" value={noticeText} onChange={e => setNoticeText(e.target.value)} placeholder="Type a new announcement..." className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" /><button className="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700">Post</button></form><div className="space-y-2">{notices.map(n => (<div key={n.id} className="flex justify-between items-center bg-gray-50 p-3 rounded border border-gray-100"><span className="text-sm text-gray-700">{n.text}</span><button onClick={() => onDeleteNotice(n.id)} className="text-red-500 hover:text-red-700"><IconTrash /></button></div>))}{notices.length === 0 && <p className="text-sm text-gray-400 italic">No active notices.</p>}</div></div>) : (<p className="text-gray-500 text-sm italic">Login as Manager to post notices.</p>)}</div>
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"><h3 className="font-bold text-gray-800 mb-2">Backup & Restore</h3><p className="text-sm text-gray-600 mb-6">Save your mess data to a file or restore from a backup.</p><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-2"><h4 className="text-sm font-semibold text-gray-700">Export Data</h4><button onClick={onExport} className="w-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded hover:bg-indigo-100 flex items-center justify-center space-x-2"><IconDownload /><span>Download JSON</span></button></div><div className="space-y-2"><h4 className="text-sm font-semibold text-gray-700">Import Data</h4><p className="text-xs text-gray-400 mt-1">Import is disabled in Cloud Mode.</p></div></div></div>
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center"><h3 className="font-bold text-gray-800 mb-4 flex items-center justify-center"><span className="mr-2"><IconInfo /></span> About Us</h3><div className="max-w-lg mx-auto space-y-4"><p className="text-gray-600 italic">"Good food is the foundation of genuine happiness. A well-managed mess brings peace to the table."</p><div className="pt-4 border-t border-gray-100"><p className="text-sm font-bold text-gray-700">Developed by Talismati Dev</p><p className="text-sm text-gray-500 mt-1">Contact us: <a href="mailto:talismati.dev@gmail.com" className="text-indigo-600 hover:underline font-medium">talismati.dev@gmail.com</a></p></div></div></div>
+          </div>
+        );
+      };
+
+      const MembersView = ({ members, onAdd, onDelete, onUpdate, isAdmin }) => {
+        const [name, setName] = useState('');
+        const [mDep, setMDep] = useState(0);
+        const [uDep, setUDep] = useState(0);
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 h-fit">
+              <h3 className="font-bold text-gray-800 mb-4">Add Member</h3>
+              <form onSubmit={e => { e.preventDefault(); onAdd(name, mDep, uDep); setName(''); setMDep(0); setUDep(0); }} className="space-y-4">
+                <div><label className="block text-sm font-medium text-gray-700">Name</label><input type="text" disabled={!isAdmin} value={name} onChange={e => setName(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required /></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="block text-sm font-medium text-gray-700">Meal Fund</label><input type="number" disabled={!isAdmin} value={mDep} onChange={e => setMDep(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required /></div>
+                  <div><label className="block text-sm font-medium text-gray-700">Util Fund</label><input type="number" disabled={!isAdmin} value={uDep} onChange={e => setUDep(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required /></div>
+                </div>
+                <button disabled={!isAdmin} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:bg-gray-300">Add Member</button>
+              </form>
+              {!isAdmin && <p className="text-xs text-center text-gray-400 mt-4">Login to manage members</p>}
+            </div>
+            <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 border-b"><tr><th className="px-6 py-3">Name</th><th className="px-6 py-3">Meal Fund</th><th className="px-6 py-3">Util Fund</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {members.map(m => (
+                    <tr key={m.id}>
+                      <td className="px-6 py-3 font-medium">{m.name}</td>
+                      <td className="px-6 py-3"><input type="number" value={m.deposit} disabled={!isAdmin} onChange={(e) => onUpdate(m.id, 'deposit', e.target.value)} className="w-20 border-b border-transparent hover:border-gray-300 focus:border-indigo-500 bg-transparent text-green-600 font-medium" /></td>
+                      <td className="px-6 py-3"><input type="number" value={m.utilDeposit} disabled={!isAdmin} onChange={(e) => onUpdate(m.id, 'utilDeposit', e.target.value)} className="w-20 border-b border-transparent hover:border-gray-300 focus:border-indigo-500 bg-transparent text-blue-600 font-medium" /></td>
+                      <td className="px-6 py-3 text-right">{isAdmin && <button onClick={() => onDelete(m.id, m.name)} className="text-red-500 hover:text-red-700"><IconTrash /></button>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      };
+
+      const ExpensesView = ({ members, expenses, onAdd, onDelete, month, isAdmin }) => {
+        const [desc, setDesc] = useState('');
+        const [amt, setAmt] = useState('');
+        const [cat, setCat] = useState('groceries');
+        const [date, setDate] = useState(month + '-01');
+        const [sourceType, setSourceType] = useState('common');
+        const [payer, setPayer] = useState('common');
+        useEffect(() => setDate(month + '-01'), [month]);
+        
+        const filtered = expenses.filter(e => e.date.startsWith(month) && !['gas','electricity','internet'].includes(e.category)).sort((a,b) => b.date.localeCompare(a.date));
+
+        const handleSubmit = (e) => {
+          e.preventDefault(); 
+          onAdd(desc, amt, date, cat, payer); 
+          setDesc(''); 
+          setAmt(''); 
+        };
+
+        const handleSourceChange = (type) => {
+          setSourceType(type);
+          if (type === 'common') {
+            setPayer('common');
+          } else {
+            if (members.length > 0) setPayer(members[0].id);
+          }
+        };
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 h-fit">
+              <h3 className="font-bold text-gray-800 mb-4">Log Bazar / Food</h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div><label className="block text-sm font-medium text-gray-700">Description</label><input type="text" disabled={!isAdmin} value={desc} onChange={e => setDesc(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required placeholder="e.g. Rice, Fish" /></div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Source of Fund</label>
+                  <div className="flex space-x-2">
+                    <button type="button" disabled={!isAdmin} onClick={() => handleSourceChange('common')} className={`flex-1 py-2 px-3 rounded-md border text-sm font-medium transition-colors ${sourceType === 'common' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Mess Fund</button>
+                    <button type="button" disabled={!isAdmin} onClick={() => handleSourceChange('individual')} className={`flex-1 py-2 px-3 rounded-md border text-sm font-medium transition-colors ${sourceType === 'individual' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Individual</button>
+                  </div>
+                </div>
+                {sourceType === 'individual' && (
+                  <div className="animate-fade-in-down"><label className="block text-sm font-medium text-gray-700">Select Member</label><select disabled={!isAdmin} value={payer} onChange={e => setPayer(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2 bg-white font-medium">{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select><p className="text-xs text-gray-500 mt-1">Amount will be added to this member's Meal Deposit.</p></div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="block text-sm font-medium text-gray-700">Amount</label><input type="number" disabled={!isAdmin} value={amt} onChange={e => setAmt(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required /></div>
+                  <div><label className="block text-sm font-medium text-gray-700">Date</label><input type="date" disabled={!isAdmin} value={date} onChange={e => setDate(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required /></div>
+                </div>
+                <button disabled={!isAdmin} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:bg-gray-300">Add Entry</button>
+              </form>
+            </div>
+            <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm text-left"><thead className="bg-gray-50 border-b"><tr><th className="px-6 py-3">Date</th><th className="px-6 py-3">Desc</th><th className="px-6 py-3">Paid By</th><th className="px-6 py-3">Amount</th><th className="px-6 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-gray-100">{filtered.map(e => { const payerName = e.payerId ? members.find(m => m.id === e.payerId)?.name || 'Unknown' : 'Mess Fund'; return (<tr key={e.id}><td className="px-6 py-3 text-gray-500">{formatDateDisplay(e.date)}</td><td className="px-6 py-3 font-medium">{e.description}</td><td className={`px-6 py-3 ${e.payerId ? 'text-indigo-600 font-medium' : 'text-gray-500'}`}>{payerName}</td><td className="px-6 py-3">{formatCurrency(e.amount)}</td><td className="px-6 py-3 text-right">{isAdmin && <button onClick={() => onDelete(e.id)} className="text-red-500 hover:text-red-700"><IconTrash /></button>}</td></tr>); })}</tbody></table>
+            </div>
+          </div>
+        );
+      };
+
+      const UtilitiesView = ({ members, expenses, onAdd, onDelete, month, isAdmin }) => {
+        const [amt, setAmt] = useState('');
+        const [cat, setCat] = useState('gas');
+        const [date, setDate] = useState(month + '-01');
+        const [payer, setPayer] = useState('common');
+        useEffect(() => setDate(month + '-01'), [month]);
+        const filtered = expenses.filter(e => e.date.startsWith(month) && ['gas','electricity','internet'].includes(e.category));
+        const handleSubmit = (e) => { e.preventDefault(); const desc = `${cat.charAt(0).toUpperCase() + cat.slice(1)} Bill`; onAdd(desc, amt, date, cat, payer); setAmt(''); };
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 h-fit">
+              <h3 className="font-bold text-gray-800 mb-4">Pay Utility Bill</h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div><label className="block text-sm font-medium text-gray-700">Type</label><select disabled={!isAdmin} value={cat} onChange={e => setCat(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2 bg-white"><option value="gas">Gas</option><option value="electricity">Electricity</option><option value="internet">Internet</option></select></div>
+                <div><label className="block text-sm font-medium text-gray-700">Paid By (Adds to Util Deposit)</label><select disabled={!isAdmin} value={payer} onChange={e => setPayer(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2 bg-white font-medium"><option value="common">Utility Fund</option>{members.map(m => <option key={m.id} value={m.id}>{m.name} (Personal)</option>)}</select></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="block text-sm font-medium text-gray-700">Amount</label><input type="number" disabled={!isAdmin} value={amt} onChange={e => setAmt(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required /></div>
+                  <div><label className="block text-sm font-medium text-gray-700">Date</label><input type="date" disabled={!isAdmin} value={date} onChange={e => setDate(e.target.value)} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" required /></div>
+                </div>
+                <button disabled={!isAdmin} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:bg-gray-300">Add Bill</button>
+              </form>
+            </div>
+            <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm text-left"><thead className="bg-gray-50 border-b"><tr><th className="px-6 py-3">Date</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Paid By</th><th className="px-6 py-3">Amount</th><th className="px-6 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-gray-100">{filtered.map(e => { const payerName = e.payerId ? members.find(m => m.id === e.payerId)?.name || 'Unknown' : 'Utility Fund'; return (<tr key={e.id}><td className="px-6 py-3 text-gray-500">{formatDateDisplay(e.date)}</td><td className="px-6 py-3 font-medium capitalize">{e.category}</td><td className={`px-6 py-3 ${e.payerId ? 'text-indigo-600 font-medium' : 'text-gray-500'}`}>{payerName}</td><td className="px-6 py-3">{formatCurrency(e.amount)}</td><td className="px-6 py-3 text-right">{isAdmin && <button onClick={() => onDelete(e.id)} className="text-red-500 hover:text-red-700"><IconTrash /></button>}</td></tr>); })}</tbody></table>
+            </div>
+          </div>
+        );
+      };
+
+      const MealsSheetView = ({ members, meals, onUpdate, month, stats, isAdmin }) => {
+        const days = useMemo(() => getDaysInMonth(month), [month]);
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-gray-800">Monthly Meal Sheet</h2><div className="flex gap-2">{!isAdmin && <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">View Only</span>}<button onClick={() => window.print()} className="no-print text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded flex items-center"><IconPrinter /> <span className="ml-1">Print</span></button></div></div>
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-green-600 text-white">
+                  <tr>
+                    <th className="p-3 text-left w-24 border-r border-green-500 sticky left-0 bg-green-600 z-10">Date</th>
+                    {members.map(m => <th key={m.id} className="p-3 text-center min-w-[80px] border-r border-green-500">{m.name}</th>)}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {days.map(d => (
+                    <tr key={d} className="hover:bg-blue-50 transition-colors">
+                      <td className="p-2 font-medium text-gray-500 border-r border-gray-200 sticky left-0 bg-white z-10 text-xs">{formatDateDisplay(d)}</td>
+                      {members.map(m => {
+                        const meal = meals.find(x => x.date === d && x.memberId === m.id);
+                        return <td key={m.id} className="p-0 border-r border-gray-100 relative"><input type="number" disabled={!isAdmin} step="0.5" className={`w-full h-full text-center py-2 bg-transparent focus:bg-white outline-none ${!isAdmin ? 'cursor-default' : ''}`} value={meal ? meal.totalMeals : ''} onChange={e => onUpdate(d, m.id, e.target.value)} placeholder="-" /></td>;
+                      })}
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300"><td className="p-3 text-right sticky left-0 bg-gray-100 border-r border-gray-300">Total</td>{members.map(m => { const s = stats.find(x => x.id === m.id); return <td key={m.id} className="p-3 text-center border-r border-gray-200">{s ? s.totalMeals : 0}</td> })}</tr>
+                  <tr className="bg-red-500 text-white font-bold"><td className="p-3 text-right sticky left-0 bg-red-500 border-r border-red-400">Meal Cost</td>{members.map(m => { const s = stats.find(x => x.id === m.id); return <td key={m.id} className="p-3 text-center border-r border-red-400 text-xs">{s ? s.myMealCost.toFixed(0) : 0}</td> })}</tr>
+                  <tr className="bg-green-500 text-white font-bold"><td className="p-3 text-right sticky left-0 bg-green-500 border-r border-green-400">Meal Dep.</td>{members.map(m => { const s = stats.find(x => x.id === m.id); return <td key={m.id} className="p-3 text-center border-r border-green-400 text-xs">{s ? s.totalMealDeposit.toFixed(0) : 0}</td> })}</tr>
+                  
+                  {/* New Utility Rows */}
+                  <tr className="bg-amber-500 text-white font-bold"><td className="p-3 text-right sticky left-0 bg-amber-500 border-r border-amber-400">Util Cost</td>{members.map(m => { const s = stats.find(x => x.id === m.id); return <td key={m.id} className="p-3 text-center border-r border-amber-400 text-xs">{s ? s.myUtilCost.toFixed(0) : 0}</td> })}</tr>
+                  <tr className="bg-blue-500 text-white font-bold"><td className="p-3 text-right sticky left-0 bg-blue-500 border-r border-blue-400">Util Dep.</td>{members.map(m => { const s = stats.find(x => x.id === m.id); return <td key={m.id} className="p-3 text-center border-r border-blue-400 text-xs">{s ? s.totalUtilDeposit.toFixed(0) : 0}</td> })}</tr>
+                  
+                  <tr className="bg-gray-200 font-bold border-t border-gray-300"><td className="p-3 text-right sticky left-0 bg-gray-200 border-r border-gray-300">Net Bal.</td>{members.map(m => { const s = stats.find(x => x.id === m.id); const bal = s ? s.netBalance : 0; return <td key={m.id} className={`p-3 text-center border-r border-gray-300 text-xs ${bal < 0 ? 'text-red-600' : 'text-green-700'}`}>{bal.toFixed(0)}</td> })}</tr>
+                </tbody>
+              </table>
+              {members.length === 0 && <div className="p-8 text-center text-gray-400">Add members to see the sheet.</div>}
+            </div>
+          </div>
+        );
+      };
+
+      const { createRoot } = ReactDOM;
+      const root = createRoot(document.getElementById('root'));
+      root.render(React.createElement(App));
+    </script>
+  </body>
+</html>
